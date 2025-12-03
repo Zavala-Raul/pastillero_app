@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "791452047534",
+    "firebase_url": "https://proyecto-final-arq-default-rtdb.firebaseio.com",
+    "project_id": "proyecto-final-arq",
+    "storage_bucket": "proyecto-final-arq.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:791452047534:android:8ae61d57ad6f037d68b53f",
+        "android_client_info": {
+          "package_name": "com.example.pastillero_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjPHubBGbFZOPVTQ2MWLvgxX3_hZJdUUA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
