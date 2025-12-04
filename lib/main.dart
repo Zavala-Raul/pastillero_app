@@ -252,6 +252,8 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
   void _mostrarDialogoAgregar() {
     int cajonSeleccionado = 1;
     int diasDuracion = 1;
+    int frecuenciaHoras = 24; 
+    
     TimeOfDay horaSeleccionada = TimeOfDay.now();
     DateTime fechaInicio = DateTime.now();
     TextEditingController nombreController = TextEditingController();
@@ -269,9 +271,10 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
                   children: [
                     TextField(
                       controller: nombreController,
-                      decoration: const InputDecoration(labelText: "Nombre del Medicamento", hintText: "Ej: Paracetamol", icon: Icon(Icons.medication)),
+                      decoration: const InputDecoration(labelText: "Nombre del Medicamento", hintText: "Ej: Antibiótico", icon: Icon(Icons.medication)),
                     ),
                     const SizedBox(height: 15),
+                    
                     DropdownButtonFormField<int>(
                       value: cajonSeleccionado,
                       decoration: const InputDecoration(labelText: "Número de Cajón"),
@@ -279,8 +282,22 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
                       onChanged: (v) => setModalState(() => cajonSeleccionado = v!),
                     ),
                     const SizedBox(height: 10),
+
+                    DropdownButtonFormField<int>(
+                      initialValue: frecuenciaHoras,
+                      decoration: const InputDecoration(labelText: "Frecuencia", icon: Icon(Icons.timelapse)),
+                      items: const [
+                        DropdownMenuItem(value: 24, child: Text("Cada 24 horas (1 al día)")),
+                        DropdownMenuItem(value: 12, child: Text("Cada 12 horas (2 al día)")),
+                        DropdownMenuItem(value: 8, child: Text("Cada 8 horas (3 al día)")),
+                        DropdownMenuItem(value: 6, child: Text("Cada 6 horas (4 al día)")),
+                        DropdownMenuItem(value: 4, child: Text("Cada 4 horas (6 al día)")),
+                      ],
+                      onChanged: (v) => setModalState(() => frecuenciaHoras = v!),
+                    ),
+                    
                     ListTile(
-                      title: Text("Hora: ${horaSeleccionada.format(context)}"),
+                      title: Text("1ra Dosis: ${horaSeleccionada.format(context)}"),
                       trailing: const Icon(Icons.access_time),
                       onTap: () async {
                         final t = await showTimePicker(context: context, initialTime: horaSeleccionada);
@@ -297,7 +314,7 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
                     ),
                     Row(
                       children: [
-                        const Text("Días: "),
+                        const Text("Duración (Días): "),
                         IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => setModalState(() { if(diasDuracion > 1) diasDuracion--; })),
                         Text("$diasDuracion", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                         IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: () => setModalState(() => diasDuracion++)),
@@ -311,7 +328,7 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
                 ElevatedButton(
                   onPressed: () {
                     String nombreFinal = nombreController.text.isEmpty ? "Medicamento General" : nombreController.text;
-                    _guardarCampana(cajonSeleccionado, horaSeleccionada, fechaInicio, diasDuracion, nombreFinal);
+                    _guardarCampana(cajonSeleccionado, horaSeleccionada, fechaInicio, diasDuracion, nombreFinal, frecuenciaHoras);
                     Navigator.pop(context);
                   },
                   child: const Text("Guardar"),
@@ -324,11 +341,18 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
     );
   }
 
-  void _guardarCampana(int cajon, TimeOfDay hora, DateTime inicio, int dias, String nombreMedicina) {
-    final horaStr = "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
-    for (int i = 0; i < dias; i++) {
-      DateTime fechaDosis = inicio.add(Duration(days: i));
-      String fechaStr = DateFormat('yyyy-MM-dd').format(fechaDosis);
+  void _guardarCampana(int cajon, TimeOfDay hora, DateTime inicio, int dias, String nombreMedicina, int intervaloHoras) {
+    DateTime fechaActual = DateTime(inicio.year, inicio.month, inicio.day, hora.hour, hora.minute);
+    
+    DateTime fechaFin = fechaActual.add(Duration(days: dias));
+
+    int contadorDosis = 0;
+
+    while (fechaActual.isBefore(fechaFin)) {
+      
+      String fechaStr = DateFormat('yyyy-MM-dd').format(fechaActual);
+      String horaStr = DateFormat('HH:mm').format(fechaActual); 
+
       _dbRefHorarios.push().set({
         "cajon": cajon,
         "fecha": fechaStr,
@@ -336,8 +360,12 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
         "descripcion": nombreMedicina,
         "status": "pendiente"
       });
+
+      fechaActual = fechaActual.add(Duration(hours: intervaloHoras));
+      contadorDosis++;
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Se programó $nombreMedicina por $dias días.")));
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Se programaron $contadorDosis tomas de $nombreMedicina.")));
   }
 
   @override
