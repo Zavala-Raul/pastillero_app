@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; 
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -25,9 +25,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      title: 'Mi Pastillero', 
       theme: ThemeData(
         primarySwatch: Colors.indigo,
         useMaterial3: true,
+        scaffoldBackgroundColor: Colors.grey[50],
       ),
       home: const MonitorPastillero(),
     );
@@ -69,10 +71,8 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
       
       data.forEach((key, value) {
         final reg = Map<String, dynamic>.from(value);
-        if(!reg.containsKey('timestamp')) reg['timestamp'] = 0; 
-
-        reg['key'] = key; 
-
+        if(!reg.containsKey('timestamp')) reg['timestamp'] = 0;
+        reg['key'] = key;
         tempList.add(reg);
       });
 
@@ -96,7 +96,6 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
       }
     });
 
-    // 2. ESCUCHAR HORARIOS
     _dbRefHorarios.onValue.listen((event) {
       if (event.snapshot.value == null) {
         setState(() => _horarios.clear());
@@ -137,26 +136,24 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
     super.dispose();
   }
 
-  // --- LANZAR NOTIFICACIÓN AL SISTEMA ---
   Future<void> _lanzarNotificacionSistema(String titulo, String cuerpo) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'canal_alertas_pastillero', // ID del canal
-      'Alertas Críticas', // Nombre visible
+      'canal_alertas_pastillero', 'Alertas Críticas',
       channelDescription: 'Notificaciones de olvido de medicación',
-      importance: Importance.max,
-      priority: Priority.high,
-      color: Colors.red,
-      playSound: true,
-      enableVibration: true,
+      importance: Importance.max, priority: Priority.high,
+      color: Colors.red, playSound: true, enableVibration: true,
     );
     const NotificationDetails details = NotificationDetails(android: androidDetails);
-    
     await flutterLocalNotificationsPlugin.show(0, titulo, cuerpo, details);
+  }
+
+  void _etiquetarHistorial(String key, String tipoEvento) {
+    _dbRefHistorial.child(key).update({"tipo_evento": tipoEvento});
   }
 
   void _preguntarConfirmacion(Map<String, dynamic> evento) {
     int cajonAbierto = evento['cajon'];
-    String firebaseKey = evento['key'].toString(); 
+    String firebaseKey = evento['key'].toString();
 
     showDialog(
       context: context,
@@ -165,7 +162,6 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
         title: Text("Se abrió el Cajón $cajonAbierto"),
         content: const Text("¿El paciente tomó su medicación?"),
         actions: [
-          // BOTÓN NO
           TextButton(
             onPressed: () {
               _etiquetarHistorial(firebaseKey, "REVISIÓN");
@@ -173,12 +169,10 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
             },
             child: const Text("NO (Solo revisar)"),
           ),
-          // BOTÓN SÍ
           ElevatedButton(
             onPressed: () {
               _marcarComoCompletado(cajonAbierto);
               _etiquetarHistorial(firebaseKey, "TOMA REALIZADA");
-              
               Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
@@ -203,12 +197,13 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
     }
   }
 
-  // --- LÓGICA DE ALERTAS ---
   void verificarOlvidos() {
     DateTime ahora = DateTime.now();
     bool hayPeligro = false;
     String mensajeError = "";
+    
     const int minutosTolerancia = 2; 
+    
     String hoyString = DateFormat('yyyy-MM-dd').format(ahora);
 
     for (var regla in _horarios) {
@@ -228,12 +223,8 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
     }
 
     if (hayPeligro && !_alertaMostrada) {
-      // 1. Mostrar Alerta en Pantalla (Visual)
       _mostrarAlertaVisual(mensajeError);
-      
-      // 2. LANZAR NOTIFICACIÓN AL SISTEMA (Sonido/Vibración)
       _lanzarNotificacionSistema("⚠️ ALERTA", mensajeError);
-
       _alertaMostrada = true;
     } else if (!hayPeligro) {
       _alertaMostrada = false;
@@ -263,7 +254,6 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
     int diasDuracion = 1;
     TimeOfDay horaSeleccionada = TimeOfDay.now();
     DateTime fechaInicio = DateTime.now();
-    // CONTROLADOR PARA EL NOMBRE DEL MEDICAMENTO
     TextEditingController nombreController = TextEditingController();
 
     showDialog(
@@ -273,21 +263,15 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
           builder: (context, setModalState) {
             return AlertDialog(
               title: const Text("Programar Tratamiento"),
-              content: SingleChildScrollView( // Scroll por si el teclado tapa
+              content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // CAMPO DE TEXTO PERSONALIZADO
                     TextField(
                       controller: nombreController,
-                      decoration: const InputDecoration(
-                        labelText: "Nombre del Medicamento",
-                        hintText: "Ej: Paracetamol",
-                        icon: Icon(Icons.medication),
-                      ),
+                      decoration: const InputDecoration(labelText: "Nombre del Medicamento", hintText: "Ej: Paracetamol", icon: Icon(Icons.medication)),
                     ),
                     const SizedBox(height: 15),
-                    
                     DropdownButtonFormField<int>(
                       value: cajonSeleccionado,
                       decoration: const InputDecoration(labelText: "Número de Cajón"),
@@ -326,7 +310,6 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
                 ElevatedButton(
                   onPressed: () {
-                    // Validamos que haya puesto nombre
                     String nombreFinal = nombreController.text.isEmpty ? "Medicamento General" : nombreController.text;
                     _guardarCampana(cajonSeleccionado, horaSeleccionada, fechaInicio, diasDuracion, nombreFinal);
                     Navigator.pop(context);
@@ -350,104 +333,131 @@ class _MonitorPastilleroState extends State<MonitorPastillero> {
         "cajon": cajon,
         "fecha": fechaStr,
         "hora": horaStr,
-        "descripcion": nombreMedicina, 
+        "descripcion": nombreMedicina,
         "status": "pendiente"
       });
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Se programó $nombreMedicina por $dias días.")));
   }
 
-  void _etiquetarHistorial(String key, String tipoEvento) {
-    _dbRefHistorial.child(key).update({
-      "tipo_evento": tipoEvento 
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Control Pastillero")),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _mostrarDialogoAgregar,
-        label: const Text("Programar"),
-        icon: const Icon(Icons.add_alarm),
+    return DefaultTabController(
+      length: 2, 
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("PillTakerZ"),
+          backgroundColor: Colors.indigo,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_active),
+              onPressed: () => _lanzarNotificacionSistema("Notificación", "Sistema de Notificaciones Activo"),
+            )
+          ],
+          bottom: const TabBar(
+            indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: [
+              Tab(icon: Icon(Icons.calendar_today), text: "Agenda"),
+              Tab(icon: Icon(Icons.history_edu), text: "Bitácora"),
+            ],
+          ),
+        ),
+        
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _mostrarDialogoAgregar,
+          label: const Text("Programar"),
+          icon: const Icon(Icons.add_alarm),
+          backgroundColor: Colors.indigo,
+          foregroundColor: Colors.white,
+        ),
+        
+        body: TabBarView(
+          children: [
+            _buildListaPendientes(),
+            _buildListaHistorial(),
+          ],
+        ),
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            color: Colors.indigo[50],
-            width: double.infinity,
-            child: const Text("Próximas Dosis (Pendientes)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-          ),
-          Expanded(
-            flex: 1,
-            child: _horarios.isEmpty 
-              ? const Center(child: Text("¡Todo al día!")) 
-              : ListView.builder(
-                  itemCount: _horarios.length,
-                  itemBuilder: (_, i) {
-                    final item = _horarios[i];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.orange,
-                          child: Text("${item['cajon']}", style: const TextStyle(color: Colors.white)),
-                        ),
-                        title: Text("${item['descripcion']}", style: const TextStyle(fontWeight: FontWeight.bold)), // NOMBRE GRANDE
-                        subtitle: Text("Fecha: ${item['fecha']} - Hora: ${item['hora']}"),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.grey),
-                          onPressed: () => _dbRefHorarios.child(item['key']).remove(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(10),
-            color: Colors.green[50],
-            width: double.infinity,
-            child: const Text("Bitácora de Actividad", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-          ),
-          Expanded(
-            flex: 1,
-            child: _historial.isEmpty
-             ? const Center(child: Text("Sin actividad reciente"))
-             : ListView.builder(
-                itemCount: _historial.length,
-                // DENTRO DEL ListView.builder DEL HISTORIAL
-                itemBuilder: (_, i) {
-                  final evento = _historial[i];
-                  
-                  // Determinamos el estilo según la etiqueta que pusimos
-                  String tipo = evento['tipo_evento'] ?? "DETECTADO"; // Default si aún no respondes
-                  bool esToma = tipo == "TOMA REALIZADA";
-                  bool esRevision = tipo == "REVISIÓN";
+    );
+  }
 
-                  return ListTile(
-                    dense: true,
-                    // Icono cambia: Pastilla (Verde) o Ojo/Herramienta (Gris)
-                    leading: esToma 
-                        ? const Icon(Icons.medication, color: Colors.green) 
-                        : (esRevision ? const Icon(Icons.visibility, color: Colors.grey) : const Icon(Icons.help_outline, color: Colors.orange)),
-                    
-                    title: Text(
-                      esToma ? "Toma de Medicamento (Cajón ${evento['cajon']})" : "Apertura de Revisión (Cajón ${evento['cajon']})",
-                      style: TextStyle(
-                        fontWeight: esToma ? FontWeight.bold : FontWeight.normal,
-                        color: esToma ? Colors.black : Colors.grey[700]
-                      )
-                    ),
-                    subtitle: Text("${evento['fecha_hora']} - Estado: $tipo"),
-                  );
-                },
-              ),
+  Widget _buildListaPendientes() {
+    if (_horarios.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
+            SizedBox(height: 10),
+            Text("¡Todo al día!", style: TextStyle(fontSize: 20, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(10),
+      itemCount: _horarios.length,
+      itemBuilder: (_, i) {
+        final item = _horarios[i];
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 10),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.orange,
+              child: Text("${item['cajon']}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            title: Text("${item['descripcion']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Row(
+              children: [
+                const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                const SizedBox(width: 5),
+                Text("${item['fecha']} a las ${item['hora']}"),
+              ],
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: () => _dbRefHorarios.child(item['key']).remove(),
+            ),
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _buildListaHistorial() {
+    if (_historial.isEmpty) {
+      return const Center(child: Text("Sin actividad reciente"));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(10),
+      itemCount: _historial.length,
+      itemBuilder: (_, i) {
+        final evento = _historial[i];
+        
+        String tipo = evento['tipo_evento'] ?? "DETECTADO"; 
+        bool esToma = tipo == "TOMA REALIZADA";
+        bool esRevision = tipo == "REVISIÓN";
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 5),
+          child: ListTile(
+            dense: true,
+            leading: esToma 
+                ? const Icon(Icons.medication, color: Colors.green) 
+                : (esRevision ? const Icon(Icons.visibility, color: Colors.grey) : const Icon(Icons.help_outline, color: Colors.orange)),
+            
+            title: Text(
+              esToma ? "Toma de Medicamento (Cajón ${evento['cajon']})" : "Apertura de Revisión (Cajón ${evento['cajon']})",
+              style: TextStyle(fontWeight: esToma ? FontWeight.bold : FontWeight.normal)
+            ),
+            subtitle: Text("${evento['fecha_hora']} - Estado: $tipo"),
+          ),
+        );
+      },
     );
   }
 }
